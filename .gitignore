@@ -1,0 +1,27 @@
+# Захваченное сырьё разведки — НИКОГДА не коммитим (там бывают токены/куки/личные данные)
+captures/
+*.har
+timeline.jsonl
+_replay_served.html
+*_text.txt
+*.png
+*.html
+!README*.html
+
+# Сгенерированные моки
+mock_server.py
+server_generated.py
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+
+# Профили браузера
+profile/
+*profile*/
+
+# OS
+.DS_Store
