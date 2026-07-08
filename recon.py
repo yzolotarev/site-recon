@@ -88,11 +88,32 @@ def _looks_like_data(url, ctype):
 
 
 class Timeline:
+    """Лог событий с ЯВНЫМИ дельтами таймингов — сырьё для восстановления поведения.
+
+    К каждому событию пишем:
+      ts            — абсолютное время (ISO, мс);
+      t_rel         — секунд от старта записи;
+      delta_ms      — сколько прошло с ЛЮБОГО предыдущего события;
+      delta_same_ms — сколько прошло с предыдущего события ТОГО ЖЕ типа.
+    delta_same_ms между 'data' → периодичность данных («заказы раз в N мин»);
+    от 'navigate' до следующего 'data' → подтверждает «приходит на релоаде».
+    """
     def __init__(self, path):
         self.f = path.open("a", encoding="utf-8")
+        self._t0 = time.time()
+        self._last = None
+        self._last_by_kind = {}
 
     def write(self, event):
+        now = time.time()
         event["ts"] = datetime.now().isoformat(timespec="milliseconds")
+        event["t_rel"] = round(now - self._t0, 3)
+        event["delta_ms"] = None if self._last is None else int((now - self._last) * 1000)
+        kind = event.get("event", "?")
+        prev = self._last_by_kind.get(kind)
+        event["delta_same_ms"] = None if prev is None else int((now - prev) * 1000)
+        self._last = now
+        self._last_by_kind[kind] = now
         self.f.write(json.dumps(event, ensure_ascii=False) + "\n")
         self.f.flush()
 
