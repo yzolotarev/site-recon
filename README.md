@@ -1,82 +1,81 @@
-# site-recon — записать любой сайт и точно его воспроизвести
+# site-recon — record any website and play it back exactly
 
-Инструмент для тех, кто пишет автоматизацию (боты, скрапперы, тесты) и хочет
-**отлаживать её против точной копии сайта, не трогая оригинал** (и не рискуя баном).
+A tool for those who write automation (bots, scrapers, tests) and want to
+**debug it against an exact copy of the website, without touching the original** (and without risking a ban).
 
-## Принцип: ТОЧНОСТЬ, а не пересказ
+## Principle: FIDELITY, not paraphrasing
 
-Копия должна быть **байт-в-байт**: те же id, class, атрибуты, имена, формы ответов.
-Тогда бот, написанный под оригинал, работает против копии **тем же ключом** — как
-пластиковый ключ открывает ту же дверь. Поэтому мы **ничего не генерируем и не
-адаптируем** — воспроизводим ЗАПИСАННОЕ.
+The copy must be **byte-for-byte**: same IDs, classes, attributes, names, response bodies.
+Then a bot written for the original works against the copy **with the exact same key** — just like
+a plastic key opens the same door. Therefore, we **do not generate or
+adapt anything** — we replay exactly what was RECORDED.
 
-## Поток
+## Flow
 
 ```
-1. ЗАПИСЬ          recon.py <url>      → ходишь руками, оно пишет ВСЁ (точно)
-        ↓ сырьё: полный DOM + HAR (тела ответов) + timeline (тайминги)
-2. ВОСПРОИЗВЕДЕНИЕ replay.py           → routeFromHAR отдаёт записанное байт-в-байт
+1. RECORD          recon.py <url>      → you browse manually, it records EVERYTHING (exactly)
+        ↓ raw material: full DOM + HAR (response bodies) + timeline (timings)
+2. REPLAY          replay.py           → routeFromHAR serves recorded content byte-for-byte
         ↓
-3. Гоняешь своего бота против копии — оффлайн, безопасно, точно.
+3. Run your bot against the copy — offline, safely, accurately.
 ```
 
-## 1. Запись (`recon.py`) — пассивно и безопасно
+## 1. Recording (`recon.py`) — passive and safe
 
 ```bash
 pip install patchright && patchright install chromium
 python3 recon.py https://site.com/app
 ```
 
-Скрипт **НИЧЕГО не кликает** — ходишь ТЫ, руками, как обычный человек (важно для
-свежих аккаунтов: за автоклики банят, за пассивную запись — нет). Сохраняется САМО:
+The script **clicks NOTHING** — YOU browse manually like a regular human (important for
+fresh accounts: you get banned for auto-clicking, but not for passive recording). It saves AUTOMATICALLY:
 
-- `traffic.har` — весь трафик, тела ответов **байт-в-байт**;
-- `NNN_*.html` — **полный DOM** каждого состояния (все id/class/атрибуты), снимается
-  сам при каждом изменении и по всем вкладкам;
-- `NNN_*_text.txt`, `*.png` — текст и скриншот (для человека);
-- `timeline.jsonl` — когда какие данные/навигация приходили + **явные дельты**
-  таймингов: `ts` (абсолют), `t_rel` (сек от старта), `delta_ms` (с прошлого
-  события), `delta_same_ms` (с прошлого события того же типа). `delta_same_ms`
-  между `data` = периодичность данных («появляется раз в N»); от `navigate` до
-  `data` = подтверждение «приходит на релоаде». Это сырьё для восстановления
-  ПОВЕДЕНИЯ сайта, а не только его вида.
+- `traffic.har` — all traffic, response bodies **byte-for-byte**;
+- `NNN_*.html` — **full DOM** of each state (all IDs/classes/attributes), captured
+  automatically upon every change and across all tabs;
+- `NNN_*_text.txt`, `*.png` — text and screenshot (for human review);
+- `timeline.jsonl` — when data/navigation arrived + **explicit timing deltas**:
+  `ts` (absolute), `t_rel` (sec from start), `delta_ms` (from previous
+  event), `delta_same_ms` (from previous event of the same type). `delta_same_ms`
+  between `data` = data frequency ("appears every N seconds"); from `Maps` to
+  `data` = confirmation "arrives on reload". This is the raw material for restoring the BEHAVIOR of the site, not just its look.
 
-Ходи по сайту тщательно, обновляй (Ctrl-R) много раз — чем богаче запись, тем полнее
-копия. Сырьё → `~/.site-recon/captures/<время>/`.
+Browse the site thoroughly, reload (Ctrl-R) many times — the richer the recording, the more complete
+the copy. Raw material → `~/.site-recon/captures/<timestamp>/`.
 
-## 2. Точное воспроизведение (`replay.py`) — fidelity-first
+## 2. Exact Replay (`replay.py`) — fidelity-first
 
 ```bash
-python3 replay.py ~/.site-recon/captures/<время> https://site.com/app
+python3 replay.py ~/.site-recon/captures/<timestamp> https://site.com/app
 ```
 
-Отдаёт **записанные** ответы через встроенный Playwright `routeFromHAR` — DOM и API
-идентичны оригиналу, потому что это и есть оригинальные данные. На живой сайт не ходит.
+Serves **recorded** responses via built-in Playwright `routeFromHAR` — DOM and API
+are identical to the original because they are the original data. It does not hit the live website.
 
-### Встроить в своего бота (главный сценарий)
+### Integrating into your bot (main scenario)
 
 ```python
 from replay import attach_replay
 ctx = await browser.new_context()
-await attach_replay(ctx, "~/.site-recon/captures/<время>/traffic.har")
-# дальше бот ходит по реальным URL — получает записанные ответы, байт-в-байт
+await attach_replay(ctx, "~/.site-recon/captures/<timestamp>/traffic.har")
+# then the bot navigates real URLs — and receives recorded responses, byte-for-byte
 ```
 
-## 3. (Опционально) Каркас-мок через LLM — `build_mock.py`
+## 3. (Optional) Mock Skeleton via LLM — `build_mock.py`
 
 ```bash
-python3 build_mock.py ~/.site-recon/captures/<время> -o mock_server.py
+python3 build_mock.py ~/.site-recon/captures/<timestamp> -o mock_server.py
 ```
 
-Генерит **черновой** редактируемый мок-сервер по сырью (через Gemini web2api).
-⚠️ Это **адаптация** (LLM переписывает верстку), поэтому **НЕ для точной копии** —
-только когда нужен лёгкий изменяемый стенд и допустимы отличия. Для fidelity —
-используй `replay.py`.
+Generates a **draft** editable mock server based on the raw data (via Gemini web2api).
+⚠️ This is an **adaptation** (LLM rewrites the layout), so it is **NOT for an exact copy** —
+only when you need a lightweight, modifiable environment and differences are acceptable. For fidelity —
+use `replay.py`.
 
-## Ограничение честно
+## Limitations Honestly
 
-`routeFromHAR` воспроизводит записанный **снимок**. Чисто динамику (новый элемент
-через N минут, «появляется только на релоаде») он отдаёт как записано — чтобы
-смоделировать её как процесс, нужен тонкий stateful-слой поверх записанных ответов
-(выбирает, какой ЗАПИСАННЫЙ ответ отдать), не меняя их содержимого.
-```
+`routeFromHAR` replays a recorded **snapshot**. Pure dynamics (a new element
+after N minutes, "appears only on reload") are served exactly as recorded — to
+model them as a process, a thin stateful layer is needed on top of the recorded responses
+(choosing which RECORDED response to serve) without changing their content.
+
