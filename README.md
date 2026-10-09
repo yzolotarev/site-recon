@@ -1,5 +1,7 @@
 # site-recon — record any website and play it back exactly
 
+![site-recon](assets/cover.jpg)
+
 A tool for those who write automation (bots, scrapers, tests) and want to
 **debug it against an exact copy of the website, without touching the original** (and without risking a ban).
 
